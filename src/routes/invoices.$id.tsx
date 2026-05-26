@@ -29,8 +29,12 @@ function InvoiceView() {
   if (!data?.inv) return <div className="p-8 text-muted-foreground">Loading…</div>;
   const inv = data.inv as any;
   const items = data.items as any[];
+  const payments = data.payments as any[];
   const company = inv.company_snapshot || {};
   const customer = inv.customer_snapshot || {};
+  const total = Number(inv.total||0);
+  const paid = Number(inv.paid_amount||0);
+  const due = Math.max(0, total - paid);
 
   return (
     <div className="space-y-4">
