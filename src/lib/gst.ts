@@ -20,9 +20,9 @@ export function computeLineAmount(item: LineItem) {
   return +(item.quantity * item.rate).toFixed(2);
 }
 
-export function computeInvoiceTotals(items: LineItem[], discount: number, sameState: boolean) {
+export function computeInvoiceTotals(items: LineItem[], discountPercent: number, sameState: boolean) {
   const subtotal = items.reduce((s, it) => s + computeLineAmount(it), 0);
-  const disc = Math.min(discount || 0, subtotal);
+  const disc = Math.min((subtotal * (discountPercent || 0)) / 100, subtotal);
   const taxable = subtotal - disc;
   let cgst = 0, sgst = 0, igst = 0;
   for (const it of items) {
@@ -37,6 +37,7 @@ export function computeInvoiceTotals(items: LineItem[], discount: number, sameSt
   return {
     subtotal: round(subtotal),
     discount: round(disc),
+    discountPercent: round(discountPercent || 0),
     taxable: round(taxable),
     cgst: round(cgst),
     sgst: round(sgst),
