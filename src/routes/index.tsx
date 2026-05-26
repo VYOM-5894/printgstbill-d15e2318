@@ -110,3 +110,9 @@ function Dashboard() {
     </div>
   );
 }
+
+export function StatusBadge({ status }: { status?: string }) {
+  const s = status || "unpaid";
+  const cls = s === "paid" ? "bg-emerald-100 text-emerald-700" : s === "partial" ? "bg-amber-100 text-amber-700" : "bg-rose-100 text-rose-700";
+  return <span className={`inline-block text-[10px] uppercase font-semibold px-2 py-0.5 rounded ${cls}`}>{s}</span>;
+}
