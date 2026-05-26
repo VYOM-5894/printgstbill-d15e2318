@@ -183,3 +183,82 @@ function Cell({ l, v }: { l: string; v: number | string }) {
     </tr>
   );
 }
+
+function PaymentsPanel({ inv, payments, due, paid, total, onChange }: any) {
+  const [open, setOpen] = useState(due > 0);
+  const [amount, setAmount] = useState<number>(due);
+  const [method, setMethod] = useState("cash");
+  const [reference, setReference] = useState("");
+  const [paidOn, setPaidOn] = useState(() => new Date().toISOString().slice(0,10));
+  const [saving, setSaving] = useState(false);
+
+  const addPayment = async () => {
+    if (!amount || amount <= 0) return;
+    setSaving(true);
+    const { error } = await supabase.from("payments").insert({ invoice_id: inv.id, amount, method, reference, paid_on: paidOn });
+    setSaving(false);
+    if (error) { alert(error.message); return; }
+    setAmount(0); setReference("");
+    onChange();
+  };
+
+  const removePayment = async (id: string) => {
+    if (!confirm("Delete this payment?")) return;
+    const { error } = await supabase.from("payments").delete().eq("id", id);
+    if (error) { alert(error.message); return; }
+    onChange();
+  };
+
+  return (
+    <div className="no-print bg-card border rounded-lg p-4 max-w-4xl mx-auto">
+      <div className="flex flex-wrap items-center gap-4 justify-between">
+        <div className="flex items-center gap-4">
+          <div>
+            <div className="text-xs text-muted-foreground">Status</div>
+            <StatusBadge status={inv.payment_status} />
+          </div>
+          <div><div className="text-xs text-muted-foreground">Total</div><div className="font-semibold">{formatINR(total)}</div></div>
+          <div><div className="text-xs text-muted-foreground">Paid</div><div className="font-semibold text-emerald-600">{formatINR(paid)}</div></div>
+          <div><div className="text-xs text-muted-foreground">Due</div><div className="font-semibold text-rose-600">{formatINR(due)}</div></div>
+        </div>
+        <button onClick={()=>setOpen(o=>!o)} className="text-sm text-primary">{open ? "Hide" : "Record Payment"}</button>
+      </div>
+
+      {open && (
+        <div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-2 items-end">
+          <label className="text-xs">Amount<input type="number" step="0.01" value={amount} onChange={e=>setAmount(Number(e.target.value))} className="mt-1 w-full px-2 py-1.5 border rounded bg-background text-sm" /></label>
+          <label className="text-xs">Method
+            <select value={method} onChange={e=>setMethod(e.target.value)} className="mt-1 w-full px-2 py-1.5 border rounded bg-background text-sm">
+              <option value="cash">Cash</option><option value="upi">UPI</option><option value="bank">Bank Transfer</option><option value="card">Card</option><option value="cheque">Cheque</option><option value="other">Other</option>
+            </select>
+          </label>
+          <label className="text-xs">Reference<input value={reference} onChange={e=>setReference(e.target.value)} placeholder="Txn / Cheque #" className="mt-1 w-full px-2 py-1.5 border rounded bg-background text-sm" /></label>
+          <label className="text-xs">Date<input type="date" value={paidOn} onChange={e=>setPaidOn(e.target.value)} className="mt-1 w-full px-2 py-1.5 border rounded bg-background text-sm" /></label>
+          <button disabled={saving} onClick={addPayment} className="inline-flex items-center justify-center gap-1 bg-primary text-primary-foreground px-3 py-2 rounded text-sm font-medium disabled:opacity-50"><Plus className="size-4" /> Add</button>
+        </div>
+      )}
+
+      {payments.length > 0 && (
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="text-left text-xs text-muted-foreground">
+              <tr><th className="py-1">Date</th><th>Method</th><th>Reference</th><th className="text-right">Amount</th><th></th></tr>
+            </thead>
+            <tbody>
+              {payments.map((p:any)=>(
+                <tr key={p.id} className="border-t">
+                  <td className="py-2">{p.paid_on}</td>
+                  <td className="capitalize">{p.method}</td>
+                  <td className="font-mono text-xs">{p.reference || "—"}</td>
+                  <td className="text-right font-medium">{formatINR(Number(p.amount))}</td>
+                  <td className="text-right"><button onClick={()=>removePayment(p.id)} className="text-rose-600"><Trash2 className="size-4" /></button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+}
