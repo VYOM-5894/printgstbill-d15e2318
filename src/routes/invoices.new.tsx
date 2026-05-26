@@ -52,6 +52,7 @@ function NewInvoice() {
 
   async function save() {
     if (!customer) { toast.error("Select a customer"); return; }
+    if (!company) { toast.error("Loading company settings…"); return; }
     const valid = items.filter(it => it.name.trim() && it.quantity > 0);
     if (valid.length === 0) { toast.error("Add at least one item"); return; }
     setSaving(true);
@@ -63,8 +64,8 @@ function NewInvoice() {
         invoice_number,
         invoice_date: invoiceDate,
         customer_id: customer.id,
-        customer_snapshot: customer,
-        company_snapshot: company,
+        customer_snapshot: customer as any,
+        company_snapshot: company as any,
         is_igst: !sameState,
         subtotal: totals.subtotal,
         discount: totals.discount,
