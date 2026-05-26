@@ -13,7 +13,6 @@ export const Route = createFileRoute("/login")({
 function LoginPage() {
   const { session, loading } = useAuth();
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -26,20 +25,10 @@ function LoginPage() {
     e.preventDefault();
     setBusy(true);
     try {
-      if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: { emailRedirectTo: window.location.origin },
-        });
-        if (error) throw error;
-        toast.success("Check your email to confirm your account.");
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-      }
-    } catch (err: any) {
-      toast.error(err.message ?? "Authentication failed");
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+    } catch {
+      toast.error("Sign in failed. Please check your credentials.");
     } finally {
       setBusy(false);
     }
@@ -52,8 +41,8 @@ function LoginPage() {
         redirect_uri: window.location.origin,
       });
       if (result.error) throw result.error;
-    } catch (err: any) {
-      toast.error(err.message ?? "Google sign-in failed");
+    } catch {
+      toast.error("Google sign-in failed. Please try again.");
       setBusy(false);
     }
   };
@@ -94,13 +83,13 @@ function LoginPage() {
             <input type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1 w-full rounded-md border px-3 py-2 text-sm bg-background" />
           </div>
           <button type="submit" disabled={busy} className="w-full rounded-md bg-primary text-primary-foreground px-4 py-2.5 text-sm font-medium hover:opacity-90 disabled:opacity-50">
-            {busy ? "Please wait…" : mode === "signup" ? "Create account" : "Sign in"}
+            {busy ? "Please wait…" : "Sign in"}
           </button>
         </form>
 
-        <button onClick={() => setMode(mode === "signin" ? "signup" : "signin")} className="mt-4 w-full text-xs text-muted-foreground hover:text-foreground">
-          {mode === "signin" ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
-        </button>
+        <p className="mt-4 text-xs text-muted-foreground text-center">
+          Sign-ups are disabled. Contact the workspace owner to be added as a user.
+        </p>
       </div>
     </div>
   );
