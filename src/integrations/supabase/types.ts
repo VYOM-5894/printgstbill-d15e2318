@@ -173,6 +173,8 @@ export type Database = {
           invoice_number: string
           is_igst: boolean
           notes: string | null
+          paid_amount: number
+          payment_status: string
           sgst: number
           subtotal: number
           taxable_amount: number
@@ -192,6 +194,8 @@ export type Database = {
           invoice_number: string
           is_igst?: boolean
           notes?: string | null
+          paid_amount?: number
+          payment_status?: string
           sgst?: number
           subtotal?: number
           taxable_amount?: number
@@ -211,6 +215,8 @@ export type Database = {
           invoice_number?: string
           is_igst?: boolean
           notes?: string | null
+          paid_amount?: number
+          payment_status?: string
           sgst?: number
           subtotal?: number
           taxable_amount?: number
@@ -225,6 +231,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      payments: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          invoice_id: string
+          method: string
+          notes: string | null
+          paid_on: string
+          reference: string | null
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          id?: string
+          invoice_id: string
+          method?: string
+          notes?: string | null
+          paid_on?: string
+          reference?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          invoice_id?: string
+          method?: string
+          notes?: string | null
+          paid_on?: string
+          reference?: string | null
+        }
+        Relationships: []
       }
       products: {
         Row: {
