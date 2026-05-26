@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/lib/local-db";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { Download, BarChart3 } from "lucide-react";
 
@@ -11,27 +11,14 @@ export const Route = createFileRoute("/reports")({
 
 type Tab = "summary" | "b2b" | "hsn" | "range";
 
-function localDate(d: Date) {
-  return format(d, "yyyy-MM-dd");
-}
-
-function inr(n: number) {
-  return "₹" + (n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
+function localDate(d: Date) { return format(d, "yyyy-MM-dd"); }
+function inr(n: number) { return "₹" + (n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 
 function downloadCsv(filename: string, rows: (string | number)[][]) {
-  const csv = rows
-    .map((r) => r.map((c) => {
-      const s = String(c ?? "");
-      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-    }).join(","))
-    .join("\n");
+  const csv = rows.map(r => r.map(c => { const s = String(c ?? ""); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; }).join(",")).join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
+  const a = document.createElement("a"); a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
 }
 
@@ -43,41 +30,24 @@ function ReportsPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["reports", from, to],
-    queryFn: async () => {
-      const { data: invoices, error } = await supabase
-        .from("invoices")
-        .select("id, invoice_number, invoice_date, customer_snapshot, is_igst, subtotal, discount, taxable_amount, cgst, sgst, igst, total, invoice_items(name, hsn, quantity, unit, rate, gst_rate, amount)")
-        .gte("invoice_date", from)
-        .lte("invoice_date", to)
-        .order("invoice_date", { ascending: true });
-      if (error) throw error;
-      return invoices ?? [];
-    },
+    queryFn: () => db.invoices.listWithItems({ from, to }),
   });
 
   const invoices = data ?? [];
 
-  const summary = useMemo(() => {
-    const total = invoices.reduce(
-      (a, i) => ({
-        count: a.count + 1,
-        taxable: a.taxable + Number(i.taxable_amount || 0),
-        cgst: a.cgst + Number(i.cgst || 0),
-        sgst: a.sgst + Number(i.sgst || 0),
-        igst: a.igst + Number(i.igst || 0),
-        total: a.total + Number(i.total || 0),
-      }),
-      { count: 0, taxable: 0, cgst: 0, sgst: 0, igst: 0, total: 0 },
-    );
-    return total;
-  }, [invoices]);
+  const summary = useMemo(() => invoices.reduce(
+    (a, i) => ({
+      count: a.count + 1, taxable: a.taxable + Number(i.taxable_amount || 0),
+      cgst: a.cgst + Number(i.cgst || 0), sgst: a.sgst + Number(i.sgst || 0),
+      igst: a.igst + Number(i.igst || 0), total: a.total + Number(i.total || 0),
+    }),
+    { count: 0, taxable: 0, cgst: 0, sgst: 0, igst: 0, total: 0 },
+  ), [invoices]);
 
   const hsnRows = useMemo(() => {
     const map = new Map<string, { hsn: string; rate: number; qty: number; taxable: number; cgst: number; sgst: number; igst: number; total: number }>();
     for (const inv of invoices) {
-      const items = (inv as any).invoice_items as any[] | null;
-      if (!items) continue;
-      for (const it of items) {
+      for (const it of inv.invoice_items) {
         const hsn = it.hsn || "—";
         const rate = Number(it.gst_rate || 0);
         const key = `${hsn}|${rate}`;
@@ -88,10 +58,7 @@ function ReportsPage() {
         const igst = inv.is_igst ? tax : 0;
         const cur = map.get(key) ?? { hsn, rate, qty: 0, taxable: 0, cgst: 0, sgst: 0, igst: 0, total: 0 };
         cur.qty += Number(it.quantity || 0);
-        cur.taxable += taxable;
-        cur.cgst += cgst;
-        cur.sgst += sgst;
-        cur.igst += igst;
+        cur.taxable += taxable; cur.cgst += cgst; cur.sgst += sgst; cur.igst += igst;
         cur.total += taxable + tax;
         map.set(key, cur);
       }
@@ -135,19 +102,14 @@ function ReportsPage() {
           { k: "hsn", label: "HSN-wise" },
           { k: "range", label: "Invoice list" },
         ] as const).map((t) => (
-          <button
-            key={t.k}
-            onClick={() => setTab(t.k)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${tab === t.k ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-          >
+          <button key={t.k} onClick={() => setTab(t.k)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${tab === t.k ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
             {t.label}
           </button>
         ))}
       </div>
 
-      {isLoading ? (
-        <div className="text-sm text-muted-foreground">Loading…</div>
-      ) : (
+      {isLoading ? (<div className="text-sm text-muted-foreground">Loading…</div>) : (
         <>
           {tab === "summary" && <SummaryTab summary={summary} from={from} to={to} />}
           {tab === "b2b" && <B2BTab invoices={invoices} />}
@@ -200,50 +162,23 @@ function B2BTab({ invoices }: { invoices: any[] }) {
   const rows = invoices.filter((i) => (i.customer_snapshot?.gstin || "").trim().length > 0);
   const exportCsv = () => {
     const header = ["GSTIN", "Customer", "Invoice No", "Date", "Taxable", "CGST", "SGST", "IGST", "Total"];
-    const body = rows.map((i) => [
-      i.customer_snapshot?.gstin || "",
-      i.customer_snapshot?.name || "",
-      i.invoice_number,
-      i.invoice_date,
-      Number(i.taxable_amount).toFixed(2),
-      Number(i.cgst).toFixed(2),
-      Number(i.sgst).toFixed(2),
-      Number(i.igst).toFixed(2),
-      Number(i.total).toFixed(2),
-    ]);
+    const body = rows.map((i) => [i.customer_snapshot?.gstin || "", i.customer_snapshot?.name || "", i.invoice_number, i.invoice_date, Number(i.taxable_amount).toFixed(2), Number(i.cgst).toFixed(2), Number(i.sgst).toFixed(2), Number(i.igst).toFixed(2), Number(i.total).toFixed(2)]);
     downloadCsv("gstr1-b2b.csv", [header, ...body]);
   };
-
   return (
     <div className="bg-card border rounded-lg overflow-hidden">
       <div className="p-4 flex items-center justify-between">
-        <div>
-          <h3 className="font-semibold">B2B Invoice-wise (GSTR-1)</h3>
-          <p className="text-xs text-muted-foreground">Invoices issued to customers with a GSTIN.</p>
-        </div>
-        <button onClick={exportCsv} disabled={!rows.length} className="flex items-center gap-2 text-sm px-3 py-2 rounded-md border hover:bg-muted disabled:opacity-50">
-          <Download className="size-4" /> Export CSV
-        </button>
+        <div><h3 className="font-semibold">B2B Invoice-wise (GSTR-1)</h3>
+        <p className="text-xs text-muted-foreground">Invoices issued to customers with a GSTIN.</p></div>
+        <button onClick={exportCsv} disabled={!rows.length} className="flex items-center gap-2 text-sm px-3 py-2 rounded-md border hover:bg-muted disabled:opacity-50"><Download className="size-4" /> Export CSV</button>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-xs uppercase">
-            <tr>
-              <th className="px-4 py-2 text-left">GSTIN</th>
-              <th className="px-4 py-2 text-left">Customer</th>
-              <th className="px-4 py-2 text-left">Invoice</th>
-              <th className="px-4 py-2 text-left">Date</th>
-              <th className="px-4 py-2 text-right">Taxable</th>
-              <th className="px-4 py-2 text-right">CGST</th>
-              <th className="px-4 py-2 text-right">SGST</th>
-              <th className="px-4 py-2 text-right">IGST</th>
-              <th className="px-4 py-2 text-right">Total</th>
-            </tr>
+            <tr><th className="px-4 py-2 text-left">GSTIN</th><th className="px-4 py-2 text-left">Customer</th><th className="px-4 py-2 text-left">Invoice</th><th className="px-4 py-2 text-left">Date</th><th className="px-4 py-2 text-right">Taxable</th><th className="px-4 py-2 text-right">CGST</th><th className="px-4 py-2 text-right">SGST</th><th className="px-4 py-2 text-right">IGST</th><th className="px-4 py-2 text-right">Total</th></tr>
           </thead>
           <tbody>
-            {rows.length === 0 ? (
-              <tr><td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">No B2B invoices in this period.</td></tr>
-            ) : rows.map((i) => (
+            {rows.length === 0 ? (<tr><td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">No B2B invoices in this period.</td></tr>) : rows.map((i) => (
               <tr key={i.id} className="border-t">
                 <td className="px-4 py-2 font-mono text-xs">{i.customer_snapshot?.gstin}</td>
                 <td className="px-4 py-2">{i.customer_snapshot?.name}</td>
@@ -273,28 +208,15 @@ function HsnTab({ rows }: { rows: any[] }) {
     <div className="bg-card border rounded-lg overflow-hidden">
       <div className="p-4 flex items-center justify-between">
         <h3 className="font-semibold">HSN-wise Summary</h3>
-        <button onClick={exportCsv} disabled={!rows.length} className="flex items-center gap-2 text-sm px-3 py-2 rounded-md border hover:bg-muted disabled:opacity-50">
-          <Download className="size-4" /> Export CSV
-        </button>
+        <button onClick={exportCsv} disabled={!rows.length} className="flex items-center gap-2 text-sm px-3 py-2 rounded-md border hover:bg-muted disabled:opacity-50"><Download className="size-4" /> Export CSV</button>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-xs uppercase">
-            <tr>
-              <th className="px-4 py-2 text-left">HSN</th>
-              <th className="px-4 py-2 text-right">Rate</th>
-              <th className="px-4 py-2 text-right">Qty</th>
-              <th className="px-4 py-2 text-right">Taxable</th>
-              <th className="px-4 py-2 text-right">CGST</th>
-              <th className="px-4 py-2 text-right">SGST</th>
-              <th className="px-4 py-2 text-right">IGST</th>
-              <th className="px-4 py-2 text-right">Total</th>
-            </tr>
+            <tr><th className="px-4 py-2 text-left">HSN</th><th className="px-4 py-2 text-right">Rate</th><th className="px-4 py-2 text-right">Qty</th><th className="px-4 py-2 text-right">Taxable</th><th className="px-4 py-2 text-right">CGST</th><th className="px-4 py-2 text-right">SGST</th><th className="px-4 py-2 text-right">IGST</th><th className="px-4 py-2 text-right">Total</th></tr>
           </thead>
           <tbody>
-            {rows.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">No items in this period.</td></tr>
-            ) : rows.map((r, idx) => (
+            {rows.length === 0 ? (<tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">No items in this period.</td></tr>) : rows.map((r, idx) => (
               <tr key={idx} className="border-t">
                 <td className="px-4 py-2 font-mono">{r.hsn}</td>
                 <td className="px-4 py-2 text-right">{r.rate}%</td>
@@ -316,43 +238,22 @@ function HsnTab({ rows }: { rows: any[] }) {
 function RangeTab({ invoices }: { invoices: any[] }) {
   const exportCsv = () => {
     const header = ["Invoice", "Date", "Customer", "GSTIN", "Taxable", "CGST", "SGST", "IGST", "Total"];
-    const body = invoices.map((i) => [
-      i.invoice_number,
-      i.invoice_date,
-      i.customer_snapshot?.name || "",
-      i.customer_snapshot?.gstin || "",
-      Number(i.taxable_amount).toFixed(2),
-      Number(i.cgst).toFixed(2),
-      Number(i.sgst).toFixed(2),
-      Number(i.igst).toFixed(2),
-      Number(i.total).toFixed(2),
-    ]);
+    const body = invoices.map((i) => [i.invoice_number, i.invoice_date, i.customer_snapshot?.name || "", i.customer_snapshot?.gstin || "", Number(i.taxable_amount).toFixed(2), Number(i.cgst).toFixed(2), Number(i.sgst).toFixed(2), Number(i.igst).toFixed(2), Number(i.total).toFixed(2)]);
     downloadCsv("invoices.csv", [header, ...body]);
   };
   return (
     <div className="bg-card border rounded-lg overflow-hidden">
       <div className="p-4 flex items-center justify-between">
         <h3 className="font-semibold">All invoices in range ({invoices.length})</h3>
-        <button onClick={exportCsv} disabled={!invoices.length} className="flex items-center gap-2 text-sm px-3 py-2 rounded-md border hover:bg-muted disabled:opacity-50">
-          <Download className="size-4" /> Export CSV
-        </button>
+        <button onClick={exportCsv} disabled={!invoices.length} className="flex items-center gap-2 text-sm px-3 py-2 rounded-md border hover:bg-muted disabled:opacity-50"><Download className="size-4" /> Export CSV</button>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-xs uppercase">
-            <tr>
-              <th className="px-4 py-2 text-left">Invoice</th>
-              <th className="px-4 py-2 text-left">Date</th>
-              <th className="px-4 py-2 text-left">Customer</th>
-              <th className="px-4 py-2 text-right">Taxable</th>
-              <th className="px-4 py-2 text-right">Tax</th>
-              <th className="px-4 py-2 text-right">Total</th>
-            </tr>
+            <tr><th className="px-4 py-2 text-left">Invoice</th><th className="px-4 py-2 text-left">Date</th><th className="px-4 py-2 text-left">Customer</th><th className="px-4 py-2 text-right">Taxable</th><th className="px-4 py-2 text-right">Tax</th><th className="px-4 py-2 text-right">Total</th></tr>
           </thead>
           <tbody>
-            {invoices.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">No invoices in this period.</td></tr>
-            ) : invoices.map((i) => (
+            {invoices.length === 0 ? (<tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">No invoices in this period.</td></tr>) : invoices.map((i) => (
               <tr key={i.id} className="border-t">
                 <td className="px-4 py-2 font-medium">{i.invoice_number}</td>
                 <td className="px-4 py-2">{i.invoice_date}</td>

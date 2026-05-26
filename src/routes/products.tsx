@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { db, type Product } from "@/lib/local-db";
 import { formatINR } from "@/lib/gst";
 import { Pencil, Trash2, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
@@ -11,46 +11,28 @@ export const Route = createFileRoute("/products")({
   component: ProductsPage,
 });
 
-type Product = { id: string; name: string; hsn: string | null; gst_rate: number; unit_price: number; unit: string | null };
-
 function ProductsPage() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<Partial<Product> | null>(null);
 
-  const { data: items = [] } = useQuery({
-    queryKey: ["products"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("products").select("*").order("name");
-      if (error) throw error;
-      return data as Product[];
-    },
-  });
+  const { data: items = [] } = useQuery({ queryKey: ["products"], queryFn: () => db.products.list() });
 
   const filtered = items.filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()) || (p.hsn??"").includes(search));
 
   async function save() {
     if (!editing?.name?.trim()) { toast.error("Name is required"); return; }
-    const payload = {
-      name: editing.name.trim(),
-      hsn: editing.hsn ?? "",
-      gst_rate: Number(editing.gst_rate ?? 18),
-      unit_price: Number(editing.unit_price ?? 0),
-      unit: editing.unit ?? "NOS",
-    };
-    const { error } = editing.id
-      ? await supabase.from("products").update(payload).eq("id", editing.id)
-      : await supabase.from("products").insert(payload);
-    if (error) { toast.error(error.message); return; }
-    toast.success("Saved");
-    setEditing(null);
-    qc.invalidateQueries({ queryKey: ["products"] });
+    try {
+      await db.products.upsert(editing);
+      toast.success("Saved");
+      setEditing(null);
+      qc.invalidateQueries({ queryKey: ["products"] });
+    } catch (e: any) { toast.error(e.message); }
   }
 
   async function remove(id: string) {
     if (!confirm("Delete this product?")) return;
-    const { error } = await supabase.from("products").delete().eq("id", id);
-    if (error) { toast.error(error.message); return; }
+    await db.products.remove(id);
     qc.invalidateQueries({ queryKey: ["products"] });
   }
 

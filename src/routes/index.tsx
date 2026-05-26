@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/lib/local-db";
 import { formatINR } from "@/lib/gst";
 import { Users, FileText, IndianRupee, TrendingUp, Plus, Wallet } from "lucide-react";
 
@@ -22,22 +22,19 @@ function Dashboard() {
       const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
       const todayStr = localDateStr(today);
       const monthStartStr = localDateStr(monthStart);
-      const [cust, inv, invs, allInvs] = await Promise.all([
-        supabase.from("customers").select("id", { count: "exact", head: true }),
-        supabase.from("invoices").select("id", { count: "exact", head: true }),
-        supabase.from("invoices").select("total, paid_amount, payment_status, invoice_date, invoice_number, customer_snapshot, id").gte("invoice_date", monthStartStr).order("invoice_date", { ascending: false }),
-        supabase.from("invoices").select("total, paid_amount, invoice_date, invoice_number, customer_snapshot, id, payment_status").order("invoice_date", { ascending: false }).limit(8),
+      const [customers, monthRows, recent, stats] = await Promise.all([
+        db.customers.list(),
+        db.invoices.list({ from: monthStartStr }),
+        db.invoices.list({ limit: 8 }),
+        db.invoices.stats(),
       ]);
-      const monthRows = invs.data ?? [];
       const todaySales = monthRows.filter(i => i.invoice_date === todayStr).reduce((s,i)=>s+Number(i.total||0),0);
       const monthSales = monthRows.reduce((s,i)=>s+Number(i.total||0),0);
-      const { data: dueData } = await supabase.from("invoices").select("total, paid_amount").neq("payment_status","paid");
-      const totalDue = (dueData ?? []).reduce((s,i)=>s+Math.max(0, Number(i.total||0)-Number(i.paid_amount||0)),0);
       return {
-        customers: cust.count ?? 0,
-        invoices: inv.count ?? 0,
-        todaySales, monthSales, totalDue,
-        recent: allInvs.data ?? [],
+        customers: customers.length,
+        invoices: stats.count,
+        todaySales, monthSales, totalDue: stats.totalDue,
+        recent,
       };
     },
   });
@@ -91,7 +88,7 @@ function Dashboard() {
               </tr>
             </thead>
             <tbody>
-              {(data?.recent ?? []).map((r: any) => (
+              {(data?.recent ?? []).map((r) => (
                 <tr key={r.id} className="border-t hover:bg-muted/30">
                   <td className="p-3"><Link to="/invoices/$id" params={{ id: r.id }} className="text-primary font-medium">{r.invoice_number}</Link></td>
                   <td className="p-3">{r.invoice_date}</td>
