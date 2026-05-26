@@ -14,7 +14,13 @@ function SettingsPage() {
   const qc = useQueryClient();
   const { data } = useQuery({
     queryKey: ["company"],
-    queryFn: async () => (await supabase.from("company_settings").select("*").limit(1).single()).data,
+    queryFn: async () => {
+      const existing = await supabase.from("company_settings").select("*").limit(1).maybeSingle();
+      if (existing.data) return existing.data;
+      const inserted = await supabase.from("company_settings").insert({ name: "My Company" }).select("*").single();
+      if (inserted.error) throw inserted.error;
+      return inserted.data;
+    },
   });
   const [form, setForm] = useState<any>({});
   useEffect(() => { if (data) setForm(data); }, [data]);
