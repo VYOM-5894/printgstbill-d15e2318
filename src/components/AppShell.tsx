@@ -1,17 +1,28 @@
-import { Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Users, Package, FileText, Settings, Plus } from "lucide-react";
+import { Link, Outlet, useRouter, useRouterState } from "@tanstack/react-router";
+import { LayoutDashboard, Users, Package, FileText, Settings, Plus, BarChart3, LogOut } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 
 const nav = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/invoices", label: "Invoices", icon: FileText },
   { to: "/customers", label: "Customers", icon: Users },
   { to: "/products", label: "Products", icon: Package },
+  { to: "/reports", label: "GST Reports", icon: BarChart3 },
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
 export function AppShell() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const router = useRouter();
+  const { user } = useAuth();
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.navigate({ to: "/login", replace: true });
+  };
+
   return (
     <div className="min-h-screen flex bg-background text-foreground">
       <aside className="no-print hidden md:flex flex-col w-60 bg-sidebar text-sidebar-foreground p-4">
@@ -42,11 +53,22 @@ export function AppShell() {
         >
           <Plus className="size-4" /> New Invoice
         </Link>
+        <div className="mt-4 pt-4 border-t border-white/10">
+          <div className="text-xs opacity-70 truncate mb-2">{user?.email}</div>
+          <button onClick={handleLogout} className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm hover:bg-white/10">
+            <LogOut className="size-4" /> Sign out
+          </button>
+        </div>
       </aside>
       <div className="flex-1 min-w-0 flex flex-col">
         <header className="no-print md:hidden border-b bg-card px-4 py-3 flex items-center justify-between">
           <div className="font-bold">GST Billing</div>
-          <Link to="/invoices/new" className="text-sm px-3 py-1.5 rounded-md bg-primary text-primary-foreground">+ Invoice</Link>
+          <div className="flex items-center gap-2">
+            <Link to="/invoices/new" className="text-sm px-3 py-1.5 rounded-md bg-primary text-primary-foreground">+ Invoice</Link>
+            <button onClick={handleLogout} className="text-sm p-1.5 rounded-md border" aria-label="Sign out">
+              <LogOut className="size-4" />
+            </button>
+          </div>
         </header>
         <nav className="no-print md:hidden border-b bg-card flex overflow-x-auto">
           {nav.map((n) => (
