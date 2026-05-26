@@ -46,6 +46,8 @@ function InvoiceView() {
         </div>
       </div>
 
+      <PaymentsPanel inv={inv} payments={payments} due={due} paid={paid} total={total} onChange={() => { refetch(); qc.invalidateQueries({ queryKey: ["dashboard"] }); qc.invalidateQueries({ queryKey: ["invoices"] }); }} />
+
       <div className="print-area bg-white text-black border rounded-lg p-8 shadow-sm max-w-4xl mx-auto" id="invoice">
         <div className="text-center border-b-2 border-black pb-2 mb-4">
           <h1 className="text-xl font-bold tracking-wide">TAX INVOICE</h1>
