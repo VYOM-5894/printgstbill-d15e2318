@@ -156,7 +156,7 @@ function NewInvoice() {
                   <input className="input" placeholder="Description" value={it.name} onChange={e=>updateItem(idx,{name:e.target.value})} />
                 </td>
                 <td className="p-2"><input className="input w-24" value={it.hsn} onChange={e=>updateItem(idx,{hsn:e.target.value})} /></td>
-                <td className="p-2"><input type="number" step="0.01" className="input w-20 text-right" value={it.quantity} onChange={e=>updateItem(idx,{quantity:+e.target.value})} /></td>
+                <td className="p-2"><input type="number" step="1" className="input w-20 text-right" value={it.quantity} onChange={e=>updateItem(idx,{quantity:Math.round(+e.target.value)})} /></td>
                 <td className="p-2"><input className="input w-16" value={it.unit} onChange={e=>updateItem(idx,{unit:e.target.value})} /></td>
                 <td className="p-2"><input type="number" step="0.01" className="input w-24 text-right" value={it.rate} onChange={e=>updateItem(idx,{rate:+e.target.value})} /></td>
                 <td className="p-2">
