@@ -1,8 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatINR } from "@/lib/gst";
-import { Printer, Download, ArrowLeft } from "lucide-react";
+import { Printer, Download, ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { StatusBadge } from "./index";
 
 export const Route = createFileRoute("/invoices/$id")({
   head: () => ({ meta: [{ title: "Invoice — GST Billing" }] }),
@@ -11,14 +13,16 @@ export const Route = createFileRoute("/invoices/$id")({
 
 function InvoiceView() {
   const { id } = Route.useParams();
-  const { data } = useQuery({
+  const qc = useQueryClient();
+  const { data, refetch } = useQuery({
     queryKey: ["invoice", id],
     queryFn: async () => {
-      const [{ data: inv }, { data: items }] = await Promise.all([
+      const [{ data: inv }, { data: items }, { data: pays }] = await Promise.all([
         supabase.from("invoices").select("*").eq("id", id).single(),
         supabase.from("invoice_items").select("*").eq("invoice_id", id).order("position"),
+        supabase.from("payments").select("*").eq("invoice_id", id).order("paid_on", { ascending: false }),
       ]);
-      return { inv, items: items ?? [] };
+      return { inv, items: items ?? [], payments: pays ?? [] };
     },
   });
 
