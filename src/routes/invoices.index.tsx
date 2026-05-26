@@ -4,6 +4,7 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatINR } from "@/lib/gst";
 import { Plus, Search, Eye } from "lucide-react";
+import { StatusBadge } from "./index";
 
 export const Route = createFileRoute("/invoices/")({
   head: () => ({ meta: [{ title: "Invoices — GST Billing" }] }),
@@ -60,24 +61,30 @@ function InvoicesList() {
               <th className="p-3">Date</th>
               <th className="p-3">Customer</th>
               <th className="p-3">Tax</th>
+              <th className="p-3">Status</th>
               <th className="p-3 text-right">Total</th>
+              <th className="p-3 text-right">Due</th>
               <th className="p-3"></th>
             </tr>
           </thead>
           <tbody>
-            {filtered.map(i => (
+            {filtered.map(i => {
+              const due = Math.max(0, Number(i.total||0) - Number(i.paid_amount||0));
+              return (
               <tr key={i.id} className="border-t hover:bg-muted/30">
                 <td className="p-3 font-medium font-mono">{i.invoice_number}</td>
                 <td className="p-3">{i.invoice_date}</td>
                 <td className="p-3">{i.customer_snapshot?.name ?? "—"}</td>
                 <td className="p-3 text-xs">{i.is_igst ? "IGST" : "CGST+SGST"}</td>
+                <td className="p-3"><StatusBadge status={i.payment_status} /></td>
                 <td className="p-3 text-right font-medium">{formatINR(Number(i.total))}</td>
+                <td className="p-3 text-right text-rose-600">{due > 0 ? formatINR(due) : "—"}</td>
                 <td className="p-3 text-right">
                   <Link to="/invoices/$id" params={{ id: i.id }} className="inline-flex items-center gap-1 text-primary text-sm"><Eye className="size-4" /> View</Link>
                 </td>
               </tr>
-            ))}
-            {filtered.length === 0 && <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">No invoices found.</td></tr>}
+            );})}
+            {filtered.length === 0 && <tr><td colSpan={8} className="p-8 text-center text-muted-foreground">No invoices found.</td></tr>}
           </tbody>
         </table>
       </div>
