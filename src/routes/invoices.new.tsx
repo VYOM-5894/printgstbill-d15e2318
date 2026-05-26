@@ -15,7 +15,7 @@ function NewInvoice() {
   const navigate = useNavigate();
   const [customerId, setCustomerId] = useState("");
   const [invoiceDate, setInvoiceDate] = useState(() => new Date().toISOString().slice(0,10));
-  const [discount, setDiscount] = useState(0);
+  const [discountPercent, setDiscountPercent] = useState(0);
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState<(LineItem & { product_id?: string })[]>([
     { name: "", hsn: "", quantity: 1, unit: "NOS", rate: 0, gst_rate: 18 },
