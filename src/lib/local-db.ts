@@ -187,7 +187,7 @@ export const db = {
   },
   async importAll(data: any) {
     if (!data || typeof data !== "object") throw new Error("Invalid file");
-    await dx().transaction("rw", dx().customers, dx().products, dx().company_settings, dx().invoices, dx().invoice_items, dx().payments, async () => {
+    await dx().transaction("rw", [dx().customers, dx().products, dx().company_settings, dx().invoices, dx().invoice_items, dx().payments], async () => {
       await Promise.all([dx().customers.clear(), dx().products.clear(), dx().company_settings.clear(), dx().invoices.clear(), dx().invoice_items.clear(), dx().payments.clear()]);
       if (data.customers?.length) await dx().customers.bulkAdd(data.customers);
       if (data.products?.length) await dx().products.bulkAdd(data.products);
