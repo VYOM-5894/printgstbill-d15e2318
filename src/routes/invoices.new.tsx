@@ -37,7 +37,7 @@ function NewInvoice() {
 
   const customer = customers.find((c: any) => c.id === customerId);
   const sameState = !!customer && !!company && (customer.state || "").trim().toLowerCase() === (company.state || "").trim().toLowerCase() && !!company.state;
-  const totals = useMemo(() => computeInvoiceTotals(items, discount, sameState), [items, discount, sameState]);
+  const totals = useMemo(() => computeInvoiceTotals(items, discountPercent, sameState), [items, discountPercent, sameState]);
 
   function updateItem(idx: number, patch: Partial<LineItem & { product_id?: string }>) {
     setItems(items.map((it,i) => i===idx ? { ...it, ...patch } : it));
@@ -183,9 +183,15 @@ function NewInvoice() {
         <div className="bg-card border rounded-lg p-4 space-y-2 text-sm">
           <Row label="Subtotal" v={totals.subtotal} />
           <div className="flex justify-between items-center">
-            <span>Discount</span>
-            <input type="number" step="0.01" className="input w-32 text-right" value={discount} onChange={e=>setDiscount(+e.target.value)} />
+            <span>Discount (%)</span>
+            <div className="flex items-center gap-2">
+              <input type="number" min={0} max={100} step="0.01" className="input w-20 text-right" value={discountPercent} onChange={e=>setDiscountPercent(Math.min(+e.target.value, 100))} />
+              <span className="text-muted-foreground text-xs">%</span>
+            </div>
           </div>
+          {totals.discount > 0 && (
+            <div className="text-xs text-right text-muted-foreground -mt-1">{formatINR(-totals.discount)}</div>
+          )}
           <Row label="Taxable Amount" v={totals.taxable} />
           {sameState ? (<>
             <Row label="CGST" v={totals.cgst} />
