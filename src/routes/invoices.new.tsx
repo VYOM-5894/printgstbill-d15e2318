@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/lib/local-db";
 import { computeInvoiceTotals, formatINR, amountInWords, type LineItem } from "@/lib/gst";
 import { Trash2, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -22,20 +22,11 @@ function NewInvoice() {
   ]);
   const [saving, setSaving] = useState(false);
 
-  const { data: customers = [] } = useQuery({
-    queryKey: ["customers"],
-    queryFn: async () => (await supabase.from("customers").select("*").order("name")).data ?? [],
-  });
-  const { data: products = [] } = useQuery({
-    queryKey: ["products"],
-    queryFn: async () => (await supabase.from("products").select("*").order("name")).data ?? [],
-  });
-  const { data: company } = useQuery({
-    queryKey: ["company"],
-    queryFn: async () => (await supabase.from("company_settings").select("*").limit(1).single()).data,
-  });
+  const { data: customers = [] } = useQuery({ queryKey: ["customers"], queryFn: () => db.customers.list() });
+  const { data: products = [] } = useQuery({ queryKey: ["products"], queryFn: () => db.products.list() });
+  const { data: company } = useQuery({ queryKey: ["company"], queryFn: () => db.company.get() });
 
-  const customer = customers.find((c: any) => c.id === customerId);
+  const customer = customers.find(c => c.id === customerId);
   const sameState = !!customer && !!company && (customer.state || "").trim().toLowerCase() === (company.state || "").trim().toLowerCase() && !!company.state;
   const totals = useMemo(() => computeInvoiceTotals(items, discountPercent, sameState), [items, discountPercent, sameState]);
 
@@ -43,7 +34,7 @@ function NewInvoice() {
     setItems(items.map((it,i) => i===idx ? { ...it, ...patch } : it));
   }
   function pickProduct(idx: number, productId: string) {
-    const p = products.find((x: any) => x.id === productId);
+    const p = products.find(x => x.id === productId);
     if (!p) return;
     updateItem(idx, { product_id: p.id, name: p.name, hsn: p.hsn ?? "", rate: Number(p.unit_price), gst_rate: Number(p.gst_rate), unit: p.unit ?? "NOS" });
   }
@@ -57,15 +48,11 @@ function NewInvoice() {
     if (valid.length === 0) { toast.error("Add at least one item"); return; }
     setSaving(true);
     try {
-      const { data: numData, error: numErr } = await supabase.rpc("next_invoice_number");
-      if (numErr) throw numErr;
-      const invoice_number = numData as string;
-      const payload = {
-        invoice_number,
+      const inv = await db.invoices.create({
         invoice_date: invoiceDate,
         customer_id: customer.id,
-        customer_snapshot: customer as any,
-        company_snapshot: company as any,
+        customer_snapshot: customer,
+        company_snapshot: company,
         is_igst: !sameState,
         subtotal: totals.subtotal,
         discount: totals.discount,
@@ -74,20 +61,14 @@ function NewInvoice() {
         total: totals.total,
         amount_in_words: amountInWords(totals.total),
         notes,
-      };
-      const { data: inv, error } = await supabase.from("invoices").insert(payload).select().single();
-      if (error) throw error;
-      const itemsPayload = valid.map((it, i) => ({
-        invoice_id: inv.id,
+      }, valid.map((it, i) => ({
         product_id: it.product_id ?? null,
         name: it.name, hsn: it.hsn, quantity: it.quantity, unit: it.unit,
         rate: it.rate, gst_rate: it.gst_rate,
         amount: +(it.quantity*it.rate).toFixed(2),
         position: i,
-      }));
-      const { error: itErr } = await supabase.from("invoice_items").insert(itemsPayload);
-      if (itErr) throw itErr;
-      toast.success(`Invoice ${invoice_number} created`);
+      })));
+      toast.success(`Invoice ${inv.invoice_number} created`);
       navigate({ to: "/invoices/$id", params: { id: inv.id } });
     } catch (e: any) {
       toast.error(e.message);
@@ -111,7 +92,7 @@ function NewInvoice() {
           <label className="block text-sm font-medium mb-1">Customer *</label>
           <select className="input" value={customerId} onChange={e=>setCustomerId(e.target.value)}>
             <option value="">Select customer</option>
-            {customers.map((c:any)=><option key={c.id} value={c.id}>{c.name}</option>)}
+            {customers.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
           {customer && (
             <div className="mt-2 text-xs text-muted-foreground">
@@ -151,7 +132,7 @@ function NewInvoice() {
                 <td className="p-2">
                   <select className="input mb-1" value={it.product_id ?? ""} onChange={e=>pickProduct(idx, e.target.value)}>
                     <option value="">— pick product (optional) —</option>
-                    {products.map((p:any)=><option key={p.id} value={p.id}>{p.name}</option>)}
+                    {products.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                   <input className="input" placeholder="Description" value={it.name} onChange={e=>updateItem(idx,{name:e.target.value})} />
                 </td>

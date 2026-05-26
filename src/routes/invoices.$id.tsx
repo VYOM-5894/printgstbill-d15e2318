@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/lib/local-db";
 import { formatINR } from "@/lib/gst";
 import { Printer, Download, ArrowLeft, Plus, Trash2 } from "lucide-react";
 import { StatusBadge } from "./index";
@@ -16,20 +16,13 @@ function InvoiceView() {
   const qc = useQueryClient();
   const { data, refetch } = useQuery({
     queryKey: ["invoice", id],
-    queryFn: async () => {
-      const [{ data: inv }, { data: items }, { data: pays }] = await Promise.all([
-        supabase.from("invoices").select("*").eq("id", id).single(),
-        supabase.from("invoice_items").select("*").eq("invoice_id", id).order("position"),
-        supabase.from("payments").select("*").eq("invoice_id", id).order("paid_on", { ascending: false }),
-      ]);
-      return { inv, items: items ?? [], payments: pays ?? [] };
-    },
+    queryFn: () => db.invoices.get(id),
   });
 
   if (!data?.inv) return <div className="p-8 text-muted-foreground">Loading…</div>;
-  const inv = data.inv as any;
-  const items = data.items as any[];
-  const payments = data.payments as any[];
+  const inv = data.inv;
+  const items = data.items;
+  const payments = data.payments;
   const company = inv.company_snapshot || {};
   const customer = inv.customer_snapshot || {};
   const total = Number(inv.total||0);
@@ -195,17 +188,16 @@ function PaymentsPanel({ inv, payments, due, paid, total, onChange }: any) {
   const addPayment = async () => {
     if (!amount || amount <= 0) return;
     setSaving(true);
-    const { error } = await supabase.from("payments").insert({ invoice_id: inv.id, amount, method, reference, paid_on: paidOn });
-    setSaving(false);
-    if (error) { alert(error.message); return; }
-    setAmount(0); setReference("");
-    onChange();
+    try {
+      await db.payments.add({ invoice_id: inv.id, amount, method, reference, paid_on: paidOn });
+      setAmount(0); setReference("");
+      onChange();
+    } catch (e: any) { alert(e.message); } finally { setSaving(false); }
   };
 
   const removePayment = async (id: string) => {
     if (!confirm("Delete this payment?")) return;
-    const { error } = await supabase.from("payments").delete().eq("id", id);
-    if (error) { alert(error.message); return; }
+    await db.payments.remove(id);
     onChange();
   };
 

@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/lib/local-db";
 import { formatINR } from "@/lib/gst";
 import { Plus, Search, Eye } from "lucide-react";
 import { StatusBadge } from "./index";
@@ -18,14 +18,7 @@ function InvoicesList() {
 
   const { data = [] } = useQuery({
     queryKey: ["invoices", from, to],
-    queryFn: async () => {
-      let q = supabase.from("invoices").select("*").order("invoice_date", { ascending: false }).order("created_at", { ascending: false }).limit(500);
-      if (from) q = q.gte("invoice_date", from);
-      if (to) q = q.lte("invoice_date", to);
-      const { data, error } = await q;
-      if (error) throw error;
-      return data as any[];
-    },
+    queryFn: () => db.invoices.list({ from: from || undefined, to: to || undefined, limit: 500 }),
   });
 
   const filtered = data.filter(i =>

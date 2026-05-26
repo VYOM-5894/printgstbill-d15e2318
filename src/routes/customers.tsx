@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { db, type Customer } from "@/lib/local-db";
 import { INDIAN_STATES } from "@/lib/gst";
 import { Pencil, Trash2, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
@@ -11,8 +11,6 @@ export const Route = createFileRoute("/customers")({
   component: CustomersPage,
 });
 
-type Customer = { id: string; name: string; gstin: string | null; mobile: string | null; address: string | null; state: string | null };
-
 function CustomersPage() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
@@ -20,11 +18,7 @@ function CustomersPage() {
 
   const { data: customers = [] } = useQuery({
     queryKey: ["customers"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("customers").select("*").order("name");
-      if (error) throw error;
-      return data as Customer[];
-    },
+    queryFn: () => db.customers.list(),
   });
 
   const filtered = customers.filter(c =>
@@ -34,26 +28,17 @@ function CustomersPage() {
 
   async function save() {
     if (!editing?.name?.trim()) { toast.error("Name is required"); return; }
-    const payload = {
-      name: editing.name.trim(),
-      gstin: editing.gstin ?? "",
-      mobile: editing.mobile ?? "",
-      address: editing.address ?? "",
-      state: editing.state ?? "",
-    };
-    const { error } = editing.id
-      ? await supabase.from("customers").update(payload).eq("id", editing.id)
-      : await supabase.from("customers").insert(payload);
-    if (error) { toast.error(error.message); return; }
-    toast.success("Saved");
-    setEditing(null);
-    qc.invalidateQueries({ queryKey: ["customers"] });
+    try {
+      await db.customers.upsert(editing);
+      toast.success("Saved");
+      setEditing(null);
+      qc.invalidateQueries({ queryKey: ["customers"] });
+    } catch (e: any) { toast.error(e.message); }
   }
 
   async function remove(id: string) {
     if (!confirm("Delete this customer?")) return;
-    const { error } = await supabase.from("customers").delete().eq("id", id);
-    if (error) { toast.error(error.message); return; }
+    await db.customers.remove(id);
     qc.invalidateQueries({ queryKey: ["customers"] });
   }
 
