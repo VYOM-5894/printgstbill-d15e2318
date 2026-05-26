@@ -261,4 +261,3 @@ function PaymentsPanel({ inv, payments, due, paid, total, onChange }: any) {
     </div>
   );
 }
-}
